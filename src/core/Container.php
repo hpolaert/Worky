@@ -9,13 +9,13 @@
 namespace P8P\Core;
 
 /**
- * App
+ * Container
  *
  * ...
  *
  */
 
-class App {
+class Container {
     /**
      * Current version
      *
