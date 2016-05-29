@@ -65,7 +65,7 @@ class Container implements ContainerInterface  {
         if(array_key_exists($key, $this->shared)){
             $instance = $this->keys[$key];
             return $instance;
-        } elseif(array_key_exists($key, $this->shared)){
+        } elseif(array_key_exists($key, $this->keys)){
             // Else default instanciation
             $key = $this->keys[$key]($this);
             return $key;
