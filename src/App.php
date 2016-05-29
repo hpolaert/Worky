@@ -6,16 +6,16 @@
  * @copyright Copyright (c) 2016 Hugues Polaert
  * @license   https://github.com/hpolaert/p8p/LICENCE.md (MIT)
  */
-namespace P8P\Core;
+namespace P8P;
 
 /**
- * Controller
+ * App
  *
  * ...
  *
  */
 
-class Controller {
+class App {
     /**
      * Current version
      *
@@ -36,5 +36,20 @@ class Controller {
 
     function run(){
 
+    }
+
+    /**
+     * App Builder
+     *
+     * @param array|null $container
+     */
+    public function __construct($container = []){
+        if (is_array($container)) {
+            $container = new Container($container);
+        }
+        if (!$container instanceof ContainerInterface) {
+            throw new InvalidArgumentException('Expected a ContainerInterface');
+        }
+        $this->container = $container;
     }
 }

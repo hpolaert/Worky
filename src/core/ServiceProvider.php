@@ -9,13 +9,13 @@
 namespace P8P\Core;
 
 /**
- * Controller
+ * ServiceProvider
  *
  * ...
  *
  */
 
-class Controller {
+class ServiceProvider {
     /**
      * Current version
      *
@@ -34,7 +34,4 @@ class Controller {
      * @throws Exception
      */
 
-    function run(){
-
-    }
 }

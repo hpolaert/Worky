@@ -6,16 +6,16 @@
  * @copyright Copyright (c) 2016 Hugues Polaert
  * @license   https://github.com/hpolaert/p8p/LICENCE.md (MIT)
  */
-namespace P8P\Core;
+namespace P8P\Http;
 
 /**
- * App
+ * Route
  *
  * ...
  *
  */
 
-class App {
+class Route {
     /**
      * Current version
      *

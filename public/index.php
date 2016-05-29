@@ -1,8 +1,17 @@
 <?php
-use Worky\Test\ClassTest;
+/**
+ * P8P Framework - Http://....
+ *
+ * @link      https://github.com/hpolaert/p8p
+ * @copyright Copyright (c) 2016 Hugues Polaert
+ * @license   https://github.com/hpolaert/p8p/LICENCE.md (MIT)
+ *
+ * Bootstrap File - Load the application
+ */
 
-require_once("vendor/autoload.php");
+use P8P\App;
 
-$mouton = new ClassTest();
-$hello = $mouton->hello();
-print($hello);
+require_once("../vendor/autoload.php");
+
+$app = new App();
+
