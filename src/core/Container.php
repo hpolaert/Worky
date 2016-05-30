@@ -8,111 +8,215 @@
  */
 namespace P8P\Core;
 
+use Closure;
 use Interop\Container\ContainerInterface;
-use Interop\Container\Exception\ContainerException;
-use Interop\Container\Exception\NotFoundException;
+use P8P\Exception\ContainerException;
+use P8P\Exception\NotFoundException;
 
 
 /**
  * Container
  *
- * Simple dependency injection container
- * Implements Interop Container interface
+ * Simple dependency injection container for providing services throughout
+ * the framework (default services are injected through the service provider)
+ *
+ * Implements Interop container principles
  */
-
-class Container implements ContainerInterface  {
-
+class Container implements ContainerInterface, \ArrayAccess
+{
     /**
-     * @var array $keys Store containers services and parameters
+     * @var array Store objects and parameters
      */
-    protected $keys = [];
+    protected $mixed = [];
 
     /**
-     * @var array $shared Store shared services
+     * @var array Store objects which should return a new instance
      */
-    protected $shared = [];
+    protected $storage = [];
 
     /**
-     * @var bool $singletonActive Default
+     * @var array Raw output of callables
      */
-    protected $singletonActive = false;
+    protected $objOutput = [];
 
     /**
-     * Magic setter for service registration
+     * @var array When objects are already in used, prevents overriding
+     */
+    protected $frozenKeys = [];
+
+    /**
+     * @var array Keep in memory registered keys
+     */
+    protected $registeredKeys = [];
+
+    /**
+     * Container instantiation
      *
-     * @param String      $key        Service ID
-     * @param String      $call       Callable or parameter
-     * @param bool|false  $share      Shared Instance
+     * Instantiates a storage facility to store
+     * callables which should return a new instance
      */
-    public function __set($key, $call, $share = false) {
-        if($call instanceof Closure and
-            // If singleton pattern...
-            ($share === true || $this->singletonActive == true)){
-                $this->shared[$key] = $call();
-        }
-        // Else store the property / callable
-        $this->keys[$key] = $call;
+    public function __construct()
+    {
+        $this->storage = new \SplObjectStorage();
     }
 
     /**
-     * Return a property/callable method
+     * Assign a new object or property to the container
      *
-     * @param $key  String  Service ID
-     * @return mixed
+     * @param mixed $key The offset to assign the object or property
+     * @param mixed $value The object or property to be assigned
+     *
+     * @throws ContainerException
+     * @return void
      */
-    public function __get($key) {
-        // Lookup for singleton instanciation
-        if(array_key_exists($key, $this->shared)){
-            $instance = $this->keys[$key];
-            return $instance;
-        } elseif(array_key_exists($key, $this->keys)){
-            // Else default instanciation
-            $key = $this->keys[$key]($this);
-            return $key;
-        } else {
-            // throw not found
+    public function offsetSet($key, $value)
+    {
+
+        // Check if the key is available
+        if (isset($this->frozenKeys[$key])) {
+            throw new ContainerException("Cannot assign object or property to an already registered and used key");
         }
+
+        // If it is, disable access to it and store it
+        $this->mixed[$key] = $value;
+        $this->registeredKeys[$key] = true;
+    }
+
+
+    /**
+     * Fetch an object or a property according to its key
+     *
+     * @param mixed $key The offset to retrieve
+     *
+     * @throws NotFoundException
+     * @return mixed Can return all value types
+     */
+    public function offsetGet($key)
+    {
+
+        // Check if the key is available
+        if (isset($this->registeredKeys[$key])) {
+            throw new NotFoundException(sprintf('Error, key "%s" is not registered', $key));
+        }
+
+        // If $key refers to an object already invoked, a property or an uninvokable object
+        if (isset($this->objOutput[$key])
+            || !$this->mixed[$key] instanceof Closure
+            || !is_object($this->mixed[$key])
+            || !method_exists($this->mixed[$key], '__invoke')
+        ) {
+            // Return it as it is
+            return $this->mixed[$key];
+        } elseif (isset($this->storage[$this->mixed[$key]])) {
+            // If the object should be re-instantiated every time
+            return $this->mixed[$key]($this);
+        }
+
+        // At this point $key refers to a callable or an object which hasn't already been instantiated
+        $output = $this->mixed[$key];
+        $this->mixed[$key] = $output($this);
+
+        // Store raw output and freeze the key
+        $this->objOutput[$key] = $this->mixed[$key];
+        $this->frozenKeys[$key] = true;
+
+        // Return the raw output of the object
+        return $this->mixed[$key];
+    }
+
+
+    /**
+     * Gets a property or a callable
+     *
+     * @param string $Key The unique identifier for the parameter or object
+     *
+     * @throws NotFoundException if the key is not registered
+     * @return mixed Can return an object or a property
+     *
+     */
+    public function output($key)
+    {
+        // Check if the key is available
+        if (isset($this->registeredKeys[$key])) {
+            throw new NotFoundException(sprintf('Error, key "%s" is not registered', $key));
+        }
+
+        // If raw output has already been registered
+        if (isset($this->objOutput[$key])) {
+            return $this->objOutput[$key];
+        }
+
+        // Call new instance and generate the raw output
+        return $this->mixed[$key];
     }
 
     /**
-     * Returns true if the container can return an entry for the given identifier.
-     * Returns false otherwise.
+     * Check if an object or property is registered to a given key
      *
-     * `has($id)` returning true does not mean that `get($id)` will not throw an exception.
-     * It does however mean that `get($id)` will not throw a `NotFoundException`.
+     * @param mixed $key An offset to check for
      *
-     * @param string $id Identifier of the entry to look for.
-     *
-     * @return string
+     * @return bool true on success or false on failure
      */
-
-    public function has($id) : bool {
-        if(array_key_exists($id, $this->keys)
-            || array_key_exists($id, $this->shared)) {
-            return true;
-        }
-        return false;
+    public function offsetExists($key) : bool
+    {
+        return isset($this->mixed[$key]);
     }
 
     /**
-     * Finds an entry of the container by its identifier and returns it.
+     * Erase a registered key from all instances
+     *
+     * @param mixed $key
+     *
+     * @return void
+     */
+    public function offsetUnset($key)
+    {
+        unset($this->mixed[$key]);
+    }
+
+    /**
+     * Store an object assigned to a key into the factory container
+     *
+     * @param mixed $key
+     *
+     * @throws ContainerException if the callable cannot be reinstantiated
+     * @return callable returned to the setter
+     */
+    public function forceNew($callable)
+    {
+        // Check if $callable is eligible to reinstatiations
+        if(!method_exists($callable, '__invoke')){
+            throw new ContainerException("Cannot assign object or property to an already registered and used key");
+        }
+
+        // Store the callable in the objects library
+        $this->storage->attach($callable);
+        return $callable;
+    }
+
+    /**
+     * Alias to offsetExists to respect Interop principles
+     *
+     * @param string $key Identifier of the entry to look for.
+     *
+     * @return bool true if key is registered, false if it isn't
+     */
+
+    public function has($key) : bool
+    {
+        return $this->offsetExists($key);
+    }
+
+    /**
+     * Alias to offsetGet to respect Interop principles
      *
      * @param string $id Identifier of the entry to look for.
      *
      * @throws NotFoundException  No entry was found for this identifier.
-     * @throws ContainerException Error while retrieving the entry.
-     *
-     * @return mixed Entry.
+     * @return mixed Object or property
      */
-    public function get($id){
-        return $this->$id;
-    }
-
-    /**
-     * @param boolean $singletonActive
-     */
-    public function setSingletonActive($singletonActive)
+    public function get($key)
     {
-        $this->singletonActive = $singletonActive;
+        return $this->offsetGet($key);
     }
 }
